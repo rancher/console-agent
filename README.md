@@ -42,7 +42,7 @@ And connect a websocket to the host and port specified (any IP of the host on po
 
 License
 =======
-Copyright (c) 2014 [http://rancher.com](Rancher Labs, Inc.)
+Copyright (c) 2014 [Rancher Labs, Inc.](http://rancher.com)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
