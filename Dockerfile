@@ -1,7 +1,18 @@
 FROM ubuntu:14.04
+MAINTAINER Vincent Fiduccia <vincent@rancher.com>
+
+# Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm git ca-certificates
-RUN git clone https://github.com/rancherio/console-agent /opt/console-agent
-RUN cd /opt/console-agent && npm install
+RUN update-alternatives --install /usr/bin/node node /usr/bin/nodejs 10
+
+# Install npm modules
+ADD package.json /tmp/package.json
+RUN cd /tmp && npm install
+RUN mkdir -p /opt/console-agent && cp -a /tmp/node_modules /opt/app
+
+WORKDIR /opt/console-agent
 ADD . /opt/console-agent
+
 EXPOSE 8001
-CMD [/opt/console-agent/agent.js']
+
+CMD ["/opt/console-agent/agent.js"]
