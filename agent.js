@@ -9,9 +9,9 @@ var request = require('request');
 
 var argv = require('minimist')(process.argv.slice(2),{default: {
     'help':   false,
-    'bind':   '0.0.0.0',
-    'port':   8001,
-    'docker': 'http://unix:/var/run/docker.sock'
+    'bind':   process.env.AGENT_BIND || '0.0.0.0',
+    'port':   process.env.AGENT_PORT || 8001,
+    'docker': process.env.AGENT_DOCKER || 'http://unix:/var/run/docker.sock'
   }, alias: {
     'help':   'h',
     'bind':   'b',
