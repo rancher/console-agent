@@ -4,7 +4,8 @@
   "description": "Agent for term.js to talk to a Docker container TTY over a WebSocket",
   "main": "agent.js",
   "scripts": {
-    "start": "./agent.js"
+    "start": "./agent.js",
+    "forever": "forever --minUptime 1000 --spinSleepTime 100 agent.js"
   },
   "repository": {
     "type": "git",
