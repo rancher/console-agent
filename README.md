@@ -1,6 +1,6 @@
 console-agent
 -------------
-Agent for [chjj/term.js](term.js) to talk to a [docker/docker](Docker) container TTY over a WebSocket.
+Agent for [chjj/term.js](term.js) to talk to a [docker/docker](Docker) container TTY over a WebSocket
 
 Installation
 ============

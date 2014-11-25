@@ -1,7 +1,7 @@
 {
   "name": "console-agent",
   "version": "0.0.1",
-  "description": "Console agent for docker exec to term.js",
+  "description": "Agent for term.js to talk to a Docker container TTY over a WebSocket",
   "main": "agent.js",
   "scripts": {
     "start": "./agent.js"
