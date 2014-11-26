@@ -78,7 +78,7 @@ function exec(containerId, cmd, cb)
       'AttachStdout': true,
       'Tty': true,
       'Cmd': [cmd],
-      'Container': 'itsubuntu'
+      'Container': containerId
     }
   }, done);
 
