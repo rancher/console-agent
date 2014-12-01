@@ -1,11 +1,11 @@
 {
   "name": "console-agent",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "description": "Agent for term.js to talk to a Docker container TTY over a WebSocket",
   "main": "agent.js",
   "scripts": {
     "start": "./agent.js",
-    "forever": "forever --minUptime 1000 --spinSleepTime 100 agent.js"
+    "forever": "./node_modules/forever/bin/forever --minUptime 1000 --spinSleepTime 100 agent.js"
   },
   "repository": {
     "type": "git",
@@ -18,6 +18,8 @@
   },
   "homepage": "https://github.com/rancherio/console-agent",
   "dependencies": {
+    "forever": "^0.13.0",
+    "jsonwebtoken": "^1.2.0",
     "minimist": "^1.1.0",
     "request": "^2.48.0",
     "ws": "^0.5.0"

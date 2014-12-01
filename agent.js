@@ -3,172 +3,233 @@
 var urllib = require('url');
 var net = require('net');
 var spawn = require('child_process').spawn;
+var fs = require('fs');
 
 var WS = require('ws');
 var request = require('request');
+var JWT = require('jsonwebtoken');
 
 var argv = require('minimist')(process.argv.slice(2),{default: {
     'help':   false,
-    'bind':   process.env.AGENT_BIND || '0.0.0.0',
-    'port':   process.env.AGENT_PORT || 8001,
-    'docker': process.env.AGENT_DOCKER || 'http://unix:/var/run/docker.sock'
+    'bind':   '0.0.0.0',
+    'port':   8001,
+    'key':    '/etc/pki/tls/certs/console.crt',
+    'docker': 'http://unix:/var/run/docker.sock',
   }, alias: {
     'help':   'h',
     'bind':   'b',
     'port':   'p',
-    'docker': 'd'
+    'key':    'k',
+    'docker': 'd',
   }
 });
 
 if ( argv.help )
 {
-  console.log('Usage:', process.argv[1],'[--port <num>] [--bind <ip address>] [--docker <url for docker API>]');
-  console.log('  --help: Show this message, but you already know that.');
-  console.log('  --port <num>: TCP port to listen on (default: 8001');
-  console.log('  --bind <ip address>: IP address to bind to/listen on (default: 0.0.0.0');
-  console.log('  --docker <url>: URL to connect to the docker remote API:');
-  console.log('    e.g. remote host: "http://docker.host:2375"');
-  console.log('    e.g. local socket: "http://unix:/var/run/docker.sock:" (default)');
-  process.exit(0);
+  help();
+  process.exit(1);
 }
 
 // Strip trailing slashes
 argv.docker = argv.docker.replace(/\/+$/,'');
 
-log('Listening on', argv.bind+':'+argv.port, 'for Docker at', argv.docker);
+// Get the public key
+var publicKey = '';
+if (argv.key)
+{
+  if (argv.key.indexOf('-----BEGIN CERTIFICATE-----') === 0)
+  {
+    publicKey = argv.key;
+  }
+  else
+  {
+    try
+    {
+      publicKey = fs.readFileSync(argv.key,'utf8');
+    }
+    catch(e)
+    {
+      console.error('Public key not found:', e);
+      process.exit(1);
+    }
+  }
+}
+else
+{
+  console.error('Public key not provided');
+  help();
+  process.exit(1);
+}
+
+// ------------
 
 var server = new WS.Server({
   port: argv.port,
   host: argv.bind
 });
 
-server.on('connection', function(client) {
-  var ip = client.upgradeReq.connection.remoteAddress;
+server.on('connection', connection);
 
-  // The first section of the request path is the container ID
-  var parsed = urllib.parse(client.upgradeReq.url, true);
-
-  var path = parsed.pathname;
-  var containerId = path.substr(1).replace(/\/.*$/,'');
-  var shell = parsed.query.shell || '/bin/bash';
-
-  log('Connection from', ip, 'for', containerId, '('+shell+')');
-
-  exec(containerId, shell, function(err, execId) {
-    if ( err )
-    {
-      error('Error:', err);
-      client.terminate();
-    }
-    else
-    {
-      start(client, execId);
-    }
-  });
+process.on('SIGINT', function() {
+  server.close();
 });
 
-function exec(containerId, cmd, cb)
-{
-  request({
-    url: argv.docker +'/containers/'+ encodeURIComponent(containerId) +'/exec',
-    method: 'POST',
-    json: true,
-    body: {
-      'AttachStdin': true,
-      'AttachStdout': true,
-      'Tty': true,
-      'Cmd': [cmd],
-      'Container': containerId
-    }
-  }, done);
+console.error('Listening on', argv.bind+':'+argv.port, 'for Docker at', argv.docker);
 
-  function done(err, res, body) {
+// ------------
+
+function connection(client) {
+  var ip = client.upgradeReq.connection.remoteAddress;
+  userLog('Opened connection');
+
+  var parsed = urllib.parse(client.upgradeReq.url, true);
+  var shell = parsed.query.shell || '/bin/bash';
+
+  var rawToken = parsed.query.token;
+  if (!rawToken)
+  {
+    return void userError('No token');
+  }
+
+  JWT.verify(rawToken, publicKey, function(err, token) {
     if ( err )
     {
-      error('Error in exec 1:', err);
-      return void cb(err);
+      return void userError('Invalid token:',err);
     }
 
-    if ( res.statusCode === 201 )
-    {
-      log('Created exec', body.Id);
-      cb(null, body.Id);
+    userLog('Verified token for', token.containerId);
+    exec(token.containerId, shell, function(err, execId) {
+      if ( err )
+      {
+        return void userError(err);
+      }
+
+      start(execId);
+    });
+  });
+
+  function exec(containerId, cmd, cb)
+  {
+    request({
+      url: argv.docker +'/containers/'+ encodeURIComponent(containerId) +'/exec',
+      method: 'POST',
+      json: true,
+      body: {
+        'AttachStdin': true,
+        'AttachStdout': true,
+        'Tty': true,
+        'Cmd': [cmd],
+        'Container': containerId
+      }
+    }, done);
+
+    function done(err, res, body) {
+      if ( err )
+      {
+        userError('Error in exec 1:', err);
+        return void cb(err);
+      }
+
+      if ( res.statusCode === 201 )
+      {
+        userLog('Created exec', body.Id);
+        cb(null, body.Id);
+      }
+      else
+      {
+        userError('Error in exec 2:', body);
+        cb(new Error(body));
+      }
     }
-    else
-    {
-      error('Error in exec 2:', body);
-      cb(new Error(body));
-    }
+  }
+
+  function start(execId)
+  {
+    userLog('Starting ('+ execId +')');
+    var docker = request({
+      url: argv.docker+'/exec/'+ execId +'/start',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        'Detach': false,
+        'Tty': true
+      })
+    });
+
+    docker.on('data', function(data) {
+  //    userLog('From docker ('+ execId +'):', data.toString('utf8'));
+      if ( client.readyState == WS.OPEN )
+      {
+        client.send(data, {binary: false});
+      }
+    });
+
+    docker.on('error', function(err) {
+      userLog('Docker error ('+ execId +'):', err);
+    });
+
+    docker.on('end', function() {
+      userLog('Docker closing ('+ execId +')');
+      if ( client.readyState == WS.OPEN )
+      {
+        client.terminate();
+      }
+    });
+
+    client.on('message', function(data) {
+  //      userLog('From client ('+ execId +'):', data.toString('utf8'));
+      docker.write(data.toString('utf8'));
+    });
+
+    client.on('end', function() {
+      userLog('end');
+    });
+
+    client.on('close', function() {
+      userLog('Client closing ('+ execId +')');
+
+      // Send a random ctrl-D to attempt to kill the bash process.
+      // see https://github.com/docker/docker/issues/9098
+      // and https://github.com/docker/docker/pull/9167
+      // @TODO remove when this is fixed in Docker
+      docker.write('\u0004');
+      docker.end();
+    });
+  }
+
+  function userError(msg)
+  {
+    var args = Array.prototype.slice.call(arguments);
+    args.unshift('['+ ip +']');
+    args.unshift('['+ (new Date()).toISOString() +']');
+    console.error.apply(null,args);
+
+    client.send('ERROR:'+msg, {binary: false}, function() {
+      client.terminate();
+    });
+  }
+
+  function userLog(/*arguments*/)
+  {
+    var args = Array.prototype.slice.call(arguments);
+    args.unshift('['+ ip +']');
+    args.unshift('['+ (new Date()).toISOString() +']');
+    console.log.apply(null,args);
   }
 }
 
-function start(client, execId)
+// ------------
+
+function help()
 {
-  log('Starting ('+ execId +')');
-  var docker = request({
-    url: argv.docker+'/exec/'+ execId +'/start',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      'Detach': false,
-      'Tty': true
-    })
-  });
-
-  docker.on('data', function(data) {
-//    log('From docker ('+ execId +'):', data.toString('utf8'));
-    if ( client.readyState == WS.OPEN )
-    {
-      client.send(data, {binary: false});
-    }
-  });
-
-  docker.on('error', function(err) {
-    log('Docker error ('+ execId +'):', err);
-  });
-
-  docker.on('close', function() {
-    log('Docker closing ('+ execId +')');
-    client.terminate();
-  });
-
-  docker.on('end', function() {
-    log('Docker ending ('+ execId +')');
-    if ( client.readyState == WS.OPEN )
-    {
-      client.terminate();
-    }
-  });
-
-  client.on('message', function(data) {
-//      log('From client ('+ execId +'):', data.toString('utf8'));
-    docker.write(data.toString('utf8'));
-  });
-
-  client.on('close', function() {
-    log('Client closing ('+ execId +')');
-
-    // Send a random ctrl-D to attempt to kill the bash process.
-    // see https://github.com/docker/docker/issues/9098
-    // and https://github.com/docker/docker/pull/9167
-    // @TODO remove when this is fixed in Docker
-    docker.write('\u0004');
-    docker.end();
-  });
-}
-
-function log(/*arguments*/)
-{
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift('['+ (new Date()).toISOString() +']');
-  console.log.apply(console,args);
-}
-
-function error(/*arguments*/)
-{
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift('['+ (new Date()).toISOString() +']');
-  console.error.apply(console,args);
+  console.log('Usage:', process.argv[1],'[--port <num>] [--bind <ip address>] [--docker <url for docker API>]');
+  console.log('  -h, --help: Show this message, but you already know that.');
+  console.log('  -p, --port=<num>: TCP port to listen on (default: 8001');
+  console.log('  -b, --bind=<ip address>: IP address to bind to/listen on (default: 0.0.0.0');
+  console.log('  -k  --key=<path|PEM-encoded string>: Path to a PEM-encoded public key, or the actual key as a PEM-encoded string');
+  console.log('  -d, --docker=<url>: URL to connect to the docker remote API:');
+  console.log('    e.g. remote host: "http://docker.host:2375"');
+  console.log('    e.g. local socket: "http://unix:/var/run/docker.sock:" (default)');
 }
