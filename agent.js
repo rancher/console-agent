@@ -83,8 +83,6 @@ function connection(client) {
   userLog('Opened connection');
 
   var parsed = urllib.parse(client.upgradeReq.url, true);
-  var shell = parsed.query.shell || '/bin/bash';
-
   var rawToken = parsed.query.token;
   if (!rawToken)
   {
@@ -97,8 +95,8 @@ function connection(client) {
       return void userError('Invalid token:',err);
     }
 
-    userLog('Verified token for', token.containerId);
-    exec(token.containerId, shell, function(err, execId) {
+    userLog('Verified token for', token.exec.Container);
+    exec(token.exec, function(err, execId) {
       if ( err )
       {
         return void userError(err);
@@ -108,19 +106,13 @@ function connection(client) {
     });
   });
 
-  function exec(containerId, cmd, cb)
+  function exec(body, cb)
   {
     request({
-      url: argv.docker +'/containers/'+ encodeURIComponent(containerId) +'/exec',
+      url: argv.docker +'/containers/'+ encodeURIComponent(body.Container) +'/exec',
       method: 'POST',
       json: true,
-      body: {
-        'AttachStdin': true,
-        'AttachStdout': true,
-        'Tty': true,
-        'Cmd': [cmd],
-        'Container': containerId
-      }
+      body: body
     }, done);
 
     function done(err, res, body) {
@@ -159,7 +151,7 @@ function connection(client) {
     });
 
     docker.on('data', function(data) {
-  //    userLog('From docker ('+ execId +'):', data.toString('utf8'));
+      // userLog('From docker ('+ execId +'):', data.toString('utf8'));
       if ( client.readyState == WS.OPEN )
       {
         client.send(data, {binary: false});
@@ -179,7 +171,7 @@ function connection(client) {
     });
 
     client.on('message', function(data) {
-  //      userLog('From client ('+ execId +'):', data.toString('utf8'));
+      // userLog('From client ('+ execId +'):', data.toString('utf8'));
       docker.write(data.toString('utf8'));
     });
 
