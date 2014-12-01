@@ -13,8 +13,8 @@ var argv = require('minimist')(process.argv.slice(2),{default: {
     'help':   false,
     'bind':   '0.0.0.0',
     'port':   8001,
-    'key':    '/etc/pki/tls/certs/console.crt',
-    'docker': 'http://unix:/var/run/docker.sock',
+    'key':    null,
+    'docker': 'http://unix:/var/run/docker.sock:/v1.15',
   }, alias: {
     'help':   'h',
     'bind':   'b',
@@ -70,9 +70,11 @@ var server = new WS.Server({
 
 server.on('connection', connection);
 
+/*
 process.on('SIGINT', function() {
   server.close();
 });
+*/
 
 console.error('Listening on', argv.bind+':'+argv.port, 'for Docker at', argv.docker);
 
@@ -216,12 +218,12 @@ function connection(client) {
 
 function help()
 {
-  console.log('Usage:', process.argv[1],'[--port <num>] [--bind <ip address>] [--docker <url for docker API>]');
+  console.log('Usage:', process.argv[1],'--key <path|PEM-encoded string> [--port <num>] [--bind <ip address>] [--docker <url for docker API>]');
   console.log('  -h, --help: Show this message, but you already know that.');
+  console.log('  -k  --key=<path|PEM-encoded string>: Path to a PEM-encoded public key, or the actual key as a PEM-encoded string');
   console.log('  -p, --port=<num>: TCP port to listen on (default: 8001');
   console.log('  -b, --bind=<ip address>: IP address to bind to/listen on (default: 0.0.0.0');
-  console.log('  -k  --key=<path|PEM-encoded string>: Path to a PEM-encoded public key, or the actual key as a PEM-encoded string');
   console.log('  -d, --docker=<url>: URL to connect to the docker remote API:');
   console.log('    e.g. remote host: "http://docker.host:2375"');
-  console.log('    e.g. local socket: "http://unix:/var/run/docker.sock:" (default)');
+  console.log('    e.g. local socket: "http://unix:/var/run/docker.sock:/v1.15" (default)');
 }
