@@ -15,4 +15,4 @@ ADD . /opt/console-agent
 
 EXPOSE 8001
 
-ENTRYPOINT ["npm","run","forever"]
+CMD ["npm","run","forever"]
