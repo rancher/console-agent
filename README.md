@@ -12,17 +12,28 @@ Installation
 
 Usage
 =====
-Start up the agent:
+Start up the agent on a docker host:
 ```bash
-  ./agent.js [--port <num>] [--bind <ip address>] [--docker <url for docker API>]
+  ./agent.js [--port <num>] [--bind <ip address>] [--docker <url for docker API>] [--key <PEM-encoded string or path to JWT public key file>]
 ```
 
-And connect a websocket to the host and port specified (any IP of the host on port 8001 by default):
+Create an exec request through the cattle API to get a JSON Web Token:
+```bash
+  curl -X POST 'http://cattle-host:8080/v1/containers/<container_id>?exec'
+```
+  Response:
+  ```http
+    {
+      ...
+    }
+  ```
+
+And connect a websocket to the host and port specified:
 ```javascript
-  var socket = new WebSocket('ws://<host>:<port>/<container_id>?shell=/bin/bash');
+  var socket = new WebSocket('ws://<host>:<port>/?token=<JWT string>');
   var term  = new Terminal({ // from term.js
     cols: 80,
-    rows: 24,
+    rows: 24
   });
 
   term.on('data', function(data) {
