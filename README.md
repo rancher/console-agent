@@ -37,11 +37,11 @@ And connect a websocket to the host and port specified:
   });
 
   term.on('data', function(data) {
-    socket.send(data);
+    socket.send(btoa(data));
   });
 
   socket.onmessage = function(message) {
-    term.write(message.data);
+    term.write(atob(message.data));
   });
 
   socket.onclose = function() {
