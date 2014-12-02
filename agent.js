@@ -156,7 +156,7 @@ function connection(client) {
       // userLog('From docker ('+ execId +'):', data.toString('utf8'));
       if ( client.readyState == WS.OPEN )
       {
-        client.send(data, {binary: false});
+        client.send(data.toString('base64'), {binary: false});
       }
     });
 
@@ -174,7 +174,7 @@ function connection(client) {
 
     client.on('message', function(data) {
       // userLog('From client ('+ execId +'):', data.toString('utf8'));
-      docker.write(data.toString('utf8'));
+      docker.write(new Buffer(data,'base64'));
     });
 
     client.on('end', function() {
