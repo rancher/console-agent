@@ -50,9 +50,9 @@ And connect a websocket to the host and port specified:
 
   term.open();
 ```
-Bugs & Issues
-=======
-Please submit bugs and issues to [rancherio/rancher](//github.com/rancherio/rancher/issues) with a title starting with `[console-agent] `.
+Contact
+======
+For questions, comments, corrections, suggestions, etc., open an issue in [rancherio/rancher](//github.com/rancherio/rancher/issues) with a title starting with `[console-agent] `.
 
 Or just [click here](//github.com/rancherio/rancher/issues/new?title=%5Bconsole-agent%5D%20) to create a new issue.
 
